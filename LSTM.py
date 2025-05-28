@@ -8,13 +8,12 @@ import torch.optim as optim
 from sklearn.model_selection import train_test_split
 from torch.utils.data import DataLoader, TensorDataset
 
-# 数据加载（路径可能需要根据实际情况调整）
+# load data
 stock_prices = pd.read_csv("../input/jpx-tokyo-stock-exchange-prediction/train_files/stock_prices.csv")
 secondary_stock_prices = pd.read_csv("../input/jpx-tokyo-stock-exchange-prediction/train_files/secondary_stock_prices.csv")
 supplemental_prices = pd.read_csv("../input/jpx-tokyo-stock-exchange-prediction/supplemental_files/stock_prices.csv")
 supplemental_secondary_stock_prices = pd.read_csv("../input/jpx-tokyo-stock-exchange-prediction/supplemental_files/secondary_stock_prices.csv")
 
-# 数据合并
 stock_prices = pd.concat([
     stock_prices, 
     secondary_stock_prices,
@@ -22,7 +21,7 @@ stock_prices = pd.concat([
     supplemental_secondary_stock_prices
 ])
 
-# 特征工程函数（包含标准化）
+# featuring (includes normalization)
 def featuring(data):
     data['ExpectedDividend'] = data['ExpectedDividend'].fillna(0)
     data["SupervisionFlag"] = data["SupervisionFlag"].astype(int)
@@ -38,12 +37,12 @@ def featuring(data):
     
     return data.drop(['RowId', 'Date'], axis=1)
 
-# 数据预处理
+# pre-process data
 data = featuring(stock_prices)
 X_data = data.drop(['Target'], axis=1)
 y_data = data['Target']
 
-# 数据集划分
+# split dataset
 X_train_val, X_test, y_train_val, y_test = train_test_split(
     X_data, y_data, test_size=0.2, random_state=42
 )
@@ -51,7 +50,7 @@ X_train, X_val, y_train, y_val = train_test_split(
     X_train_val, y_train_val, test_size=0.25, random_state=42
 )
 
-# LSTM模型定义
+# LSTM model
 class LSTMModel(nn.Module):
     def __init__(self, input_size, hidden_size, num_layers):
         super(LSTMModel, self).__init__()
@@ -65,7 +64,6 @@ class LSTMModel(nn.Module):
         out = self.dropout(out)
         return self.fc(out)
 
-# 序列生成函数（优化后的版本）
 def create_sequences(X, y, seq_length):
     sequences = []
     targets = []
@@ -76,21 +74,20 @@ def create_sequences(X, y, seq_length):
     targets_np = np.array(targets)
     return torch.tensor(sequences_np, dtype=torch.float32), torch.tensor(targets_np, dtype=torch.float32)
 
-# 训练配置
 seq_length = 10
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-# 数据转换为序列格式
+# transfer data
 X_train_seq, y_train_seq = create_sequences(X_train.values, y_train.values, seq_length)
 X_val_seq, y_val_seq = create_sequences(X_val.values, y_val.values, seq_length)
 X_test_seq, y_test_seq = create_sequences(X_test.values, y_test.values, seq_length)
 
-# 移动到设备
+
 X_train_seq, y_train_seq = X_train_seq.to(device), y_train_seq.to(device)
 X_val_seq, y_val_seq = X_val_seq.to(device), y_val_seq.to(device)
 X_test_seq, y_test_seq = X_test_seq.to(device), y_test_seq.to(device)
 
-# DataLoader设置
+# DataLoader
 train_dataset = TensorDataset(X_train_seq, y_train_seq)
 val_dataset = TensorDataset(X_val_seq, y_val_seq)
 test_dataset = TensorDataset(X_test_seq, y_test_seq)
@@ -99,14 +96,14 @@ train_loader = DataLoader(train_dataset, batch_size=1024, shuffle=False)
 val_loader = DataLoader(val_dataset, batch_size=1024, shuffle=False)
 test_loader = DataLoader(test_dataset, batch_size=1024, shuffle=False)
 
-# 模型初始化
+
 model = LSTMModel(
     input_size=X_train.shape[1], 
     hidden_size=64, 
     num_layers=2
 ).to(device)
 
-# 训练循环（修复损失记录问题）
+
 criterion = nn.MSELoss()
 optimizer = optim.Adam(model.parameters(), lr=0.001, weight_decay=1e-5)
 epochs = 3
@@ -115,7 +112,6 @@ train_losses = []  # 初始化训练损失列表
 val_losses = []    # 初始化验证损失列表
 
 for epoch in range(epochs):
-    # 训练阶段
     model.train()
     train_loss = 0
     for X_batch, y_batch in train_loader:
